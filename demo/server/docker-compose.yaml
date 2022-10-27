@@ -1,0 +1,28 @@
+version: '3'
+
+services:
+
+  prom:
+    image: prom/prometheus
+    ports:
+      - 9090:9090
+    links:
+      - phi_failure_detector:phi_failure_detector
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+      - prometheus_data:/prometheus
+    
+  phi_failure_detector:
+    image: dmw2151/phi-failure-server
+    expose:
+      - 52150
+    ports:
+      - 52150:52150 # publish metrics endpoint
+      - 52151:52151 # listen for health ping messages
+    environment:
+      - METRICS_SERVE_ADDR="127.0.0.1:52150"
+      - FAILURE_DETECTOR_LISTEN_ADDR="0.0.0.0:52151"
+    
+volumes:
+  prometheus_data: {}
+
