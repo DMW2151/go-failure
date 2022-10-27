@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	fail "failure"
-	failproto "failure/proto"
+	fail "github.com/dmw2151/go-failure"
+	failproto "github.com/dmw2151/go-failure/proto"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc"

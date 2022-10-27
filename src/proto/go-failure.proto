@@ -1,14 +1,12 @@
 /*
-
-
--- generate from ./src directory
-protoc --go_out=. ./proto/phiacc.proto --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative 
+note: generate from ./src directory
+protoc --go_out=. ./proto/go-failure.proto --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative 
 */
 
 syntax = "proto3";
 
 package failure;
-option go_package = "/proto/phiacc.proto";
+option go_package = "github.com/dmw2151/go-failure/proto";
 
 import "google/protobuf/empty.proto";
 

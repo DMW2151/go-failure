@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.21.7
-// source: proto/phiacc.proto
+// source: proto/go-failure.proto
 
-package phiacc_proto
+package proto
 
 import (
 	context "context"
@@ -102,5 +102,5 @@ var PhiAccrual_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/phiacc.proto",
+	Metadata: "proto/go-failure.proto",
 }

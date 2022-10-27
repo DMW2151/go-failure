@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	fail "failure"
-	failproto "failure/proto"
+	fail "github.com/dmw2151/go-failure"
+	failproto "github.com/dmw2151/go-failure/proto"
 
 	log "github.com/sirupsen/logrus"
 	grpc "google.golang.org/grpc"
