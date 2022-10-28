@@ -10,7 +10,7 @@ services:
     links:
       - phi_failure_detector:phi_failure_detector
     volumes:
-      - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yaml
       - prometheus_data:/prometheus
     
   phi_failure_detector:

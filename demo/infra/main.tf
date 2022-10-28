@@ -33,7 +33,7 @@ data "digitalocean_ssh_key" "phi" {
 resource "digitalocean_droplet" "server" {
   name          = "server-node-nyc"
   image         = "ubuntu-22-04-x64"
-  size          = "s-1vcpu-2gb"
+  size          = "s-2vcpu-4gb"
   region        = "nyc3"
   droplet_agent = true
   monitoring    = true
@@ -47,7 +47,7 @@ resource "digitalocean_droplet" "nodes" {
 
   name          = "client-node-${each.key}"
   image         = "ubuntu-22-04-x64"
-  size          = "s-1vcpu-2gb"
+  size          = "s-1vcpu-1gb"
   region        = each.key
   droplet_agent = true
   monitoring    = true
