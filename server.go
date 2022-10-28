@@ -61,7 +61,7 @@ func (s Server) Heartbeat(ctx context.Context, hb *failproto.Beat) (*emptypb.Emp
 
 	// lookup a client process by UUID && check if exists/DNE
 	detector, ok := s.registeredProcs[hb.Uuid]
-	
+
 	// if client process DNE -> create a new entry in the registry of tracked clients
 	if !ok {
 		s.logger.WithFields(log.Fields{
