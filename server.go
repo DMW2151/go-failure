@@ -79,6 +79,7 @@ func (s Server) Heartbeat(ctx context.Context, hb *failproto.Beat) (*emptypb.Emp
 			"client_host_id":      detector.Tags["client_host_id"],
 			"client_pid":          detector.Tags["client_pid"],
 			"client_process_uuid": hb.Uuid,
+			"client_region":       detector.Tags["client_region"],
 			"server_host_id":      s.hostID,
 		}).Inc()
 
@@ -118,6 +119,7 @@ func (s *Server) CalculateProcessSuspicion(calcTimestamp time.Time, publishMetri
 			var labels = prometheus.Labels{
 				"client_host_id":      pFd.Tags["client_host_id"],
 				"client_pid":          pFd.Tags["client_pid"],
+				"client_region":       pFd.Tags["client_region"],
 				"client_process_uuid": pUuid,
 				"server_host_id":      s.hostID,
 			}
@@ -140,6 +142,7 @@ func (s *Server) PurgeDeadProcs(deadProcs []string, publishMetrics bool) error {
 		var labels = prometheus.Labels{
 			"client_host_id":      d.Tags["client_host_id"],
 			"client_pid":          d.Tags["client_pid"],
+			"client_region":       d.Tags["client_region"],
 			"client_process_uuid": pUuid,
 			"server_host_id":      s.hostID,
 		}

@@ -33,7 +33,7 @@ data "digitalocean_ssh_key" "phi" {
 resource "digitalocean_droplet" "server" {
   name          = "server-node-nyc"
   image         = "ubuntu-22-04-x64"
-  size          = "s-1vcpu-1gb"
+  size          = "s-1vcpu-2gb"
   region        = "nyc3"
   droplet_agent = true
   monitoring    = true
@@ -47,16 +47,16 @@ resource "digitalocean_droplet" "nodes" {
 
   name          = "client-node-${each.key}"
   image         = "ubuntu-22-04-x64"
-  size          = "s-1vcpu-1gb"
+  size          = "s-1vcpu-2gb"
   region        = each.key
   droplet_agent = true
   monitoring    = true
-  user_data     = templatefile(
+  user_data = templatefile(
     "${path.module}/../provisioning/client/provision.sh", {
-      FAILURE_DETECTOR_SERVER_HOST=digitalocean_droplet.server.ipv4_address
+      FAILURE_DETECTOR_SERVER_HOST = digitalocean_droplet.server.ipv4_address
     }
   )
-  ssh_keys      = [data.digitalocean_ssh_key.phi.id]
+  ssh_keys = [data.digitalocean_ssh_key.phi.id]
 }
 
 

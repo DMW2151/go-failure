@@ -38,6 +38,7 @@ func main() {
 		Tags: map[string]string{
 			"client_pid":     fmt.Sprintf("%d", os.Getpid()),
 			"client_host_id": host,
+			"client_region":  os.Getenv("DIGITALOCEAN_REGION"),
 		},
 	}
 
