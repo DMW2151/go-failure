@@ -3,6 +3,7 @@ module github.com/dmw2151/go-failure
 go 1.18
 
 require (
+	github.com/google/uuid v1.1.2
 	github.com/prometheus/client_golang v1.13.0
 	github.com/sirupsen/logrus v1.9.0
 	google.golang.org/grpc v1.50.1

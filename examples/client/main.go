@@ -15,14 +15,14 @@ import (
 )
 
 var (
-	failureDetectorServerHost = os.Getenv("FAILURE_DETECTOR_SERVER_HOST") // localhost | TBD
+	failureDetectorServerHost = os.Getenv("FAILURE_DETECTOR_SERVER_HOST") // TBD
 	failureDetectorServerPort = os.Getenv("FAILURE_DETECTOR_SERVER_PORT") // "52151"
-	clientHeartBeatInterval   = 500 * time.Millisecond
+	clientHeartBeatInterval   = 300 * time.Millisecond
 )
 
 func main() {
 
-	//
+	// init NewFailureDetectorClient...
 	fdc, _ := fail.NewFailureDetectorClient(
 		failureDetectorServerHost, failureDetectorServerPort,
 		[]grpc.DialOption{
@@ -30,7 +30,8 @@ func main() {
 		},
 	)
 
-	//
+	// define message to send as heartbeat
+	// todo: `StartPhiAccClient` could send full message once & (only) ID on subsequent beats
 	host, _ := os.Hostname()
 	msg := failproto.Beat{
 		Uuid: uuid.New().String(),

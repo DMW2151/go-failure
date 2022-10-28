@@ -8,7 +8,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	failproto "failure/proto"
+	failproto "github.com/dmw2151/go-failure/proto"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -16,8 +16,9 @@ import (
 
 // DetectorOptions - config options to control failure detection estimation window, etc...
 type DetectorOptions struct {
-	WindowSize         int
-	ManagementInterval time.Duration
+	WindowSize             int
+	ManagementInterval     time.Duration
+	PurgeAllSuspectedProcs bool
 }
 
 // Server - maintains collection of detectors + metadata. Implements `UnimplementedPhiAccrualServer`
@@ -107,7 +108,6 @@ func (s *Server) CalculateProcessSuspicion(calcTimestamp time.Time, publishMetri
 	for pUuid, pFd := range s.registeredProcs {
 
 		phi = pFd.Suspicion(pFd.lastHeartbeat, calcTimestamp)
-
 		if phi == math.Inf(1) {
 			deadProcs = append(deadProcs, pUuid)
 		}
@@ -134,7 +134,6 @@ func (s *Server) PurgeDeadProcs(deadProcs []string, publishMetrics bool) error {
 
 	for _, pUuid := range deadProcs {
 
-		// delete from registeredProcs
 		d, _ := s.registeredProcs[pUuid]
 		delete(s.registeredProcs, pUuid)
 
@@ -164,7 +163,7 @@ func (s *Server) PurgeDeadProcs(deadProcs []string, publishMetrics bool) error {
 	return nil
 }
 
-// ManageLifecycle - de-registers expired procs on set interval + publishes
+// ManageLifecycle - calc phi && de-registers expired procs on set interval + publishes
 func (s *Server) ManageLifecycle(ctx context.Context, publishMetrics bool) {
 
 	var calcTimestamp time.Time
@@ -177,7 +176,7 @@ func (s *Server) ManageLifecycle(ctx context.Context, publishMetrics bool) {
 		case <-logTicker.C:
 			calcTimestamp = time.Now()
 
-			// calc phi...
+			// calc phi
 			deadProcs, err := s.CalculateProcessSuspicion(calcTimestamp, publishMetrics)
 			if err != nil {
 				s.logger.WithFields(log.Fields{
@@ -186,13 +185,16 @@ func (s *Server) ManageLifecycle(ctx context.Context, publishMetrics bool) {
 				}).Error("error calculating suspicion")
 			}
 
-			// take action on phi... 
-			err = s.PurgeDeadProcs(deadProcs, publishMetrics)
-			if err != nil {
-				s.logger.WithFields(log.Fields{
-					"server_host_id": s.hostID,
-					"err":            err,
-				}).Error("error purging suspected procs")
+			// note: making `PurgeSuspectedProcs` an option here -> probably don't want to blow away
+			// a node's history from a single bad meessage...
+			if s.dOpts.PurgeAllSuspectedProcs {
+				err = s.PurgeDeadProcs(deadProcs, publishMetrics)
+				if err != nil {
+					s.logger.WithFields(log.Fields{
+						"server_host_id": s.hostID,
+						"err":            err,
+					}).Error("error purging suspected procs")
+				}
 			}
 
 		}

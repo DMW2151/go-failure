@@ -55,7 +55,7 @@ func NewPhiAccrualDetector(windowSize int) *PhiAccrualDetector {
 // AddValue - tack on a value to the statistics
 func (phiD *PhiAccrualDetector) AddValue(newVal float64) error {
 
-	// safety first; note :: idk if we run into locking issues, only one goroutine should  
+	// safety first; note :: idk if we run into locking issues, only one goroutine should
 	// ever be toouching these values, but good to be safe...
 	phiD.mu.Lock()
 	defer phiD.mu.Unlock()

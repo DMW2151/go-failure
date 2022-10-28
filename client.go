@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	failproto "failure/proto"
+	failproto "github.com/dmw2151/go-failure/proto"
 
 	log "github.com/sirupsen/logrus"
 	grpc "google.golang.org/grpc"
@@ -19,7 +19,7 @@ type ClientOptions struct {
 // StartPhiAccClient - run forever
 func StartPhiAccClient(ctx context.Context, c failproto.PhiAccrualClient, msg *failproto.Beat, clOpts *ClientOptions) error {
 
-	// 
+	//
 	hbTicker := time.NewTicker(clOpts.Interval)
 	defer hbTicker.Stop()
 
@@ -55,7 +55,7 @@ func NewFailureDetectorClient(host string, port string, dialOptions []grpc.DialO
 	conn, err := grpc.Dial(fmt.Sprintf("%s:%s", host, port), dialOptions...)
 	if err != nil {
 		log.WithFields(log.Fields{
-			"err":                 err,
+			"err": err,
 		}).Error("failed to dial fd server")
 		return nil, err
 	}
