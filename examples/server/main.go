@@ -19,7 +19,7 @@ var (
 	failureDetectorMetricsAddress = os.Getenv("METRICS_SERVE_ADDR")           // "127.0.0.1:52150"
 	failureDetectorListenAddress  = os.Getenv("FAILURE_DETECTOR_LISTEN_ADDR") // "0.0.0.0:52151"
 	phiCalculationWindowSize      = 100
-	managementInterval            = time.Duration(time.Millisecond * 100)
+	managementInterval            = time.Duration(time.Second * 30)
 	publishMetrics                = true
 )
 
@@ -33,7 +33,7 @@ func main() {
 	fdServer, err := fail.NewFailureDetectorServer(&fail.DetectorOptions{
 		WindowSize:             phiCalculationWindowSize,
 		ManagementInterval:     managementInterval,
-		PurgeAllSuspectedProcs: false,
+		PurgeAllSuspectedProcs: true,
 	}, nil)
 
 	if err != nil {

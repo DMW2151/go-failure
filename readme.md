@@ -22,6 +22,12 @@ Implementation of a phi-accrual failure detector from `Hayashibara et al.` with 
 }
 ```
 
+## Running on DO
+
+```bash
+cd ./demo/infra && terraform apply -var digitalocean_token=$DIGITALOCEAN_TOKEN
+```
+
 ## Running Locally
 
 ```bash
@@ -50,10 +56,4 @@ curl -s http://localhost:52150/metrics | grep -E 'client_host_id' | head -n 3
 failure_detector_active_clients{client_host_id="docker-desktop",client_pid="1",...} 1
 failure_detector_heartbeat_interval{client_host_id="docker-desktop",client_pid="1",...} 299988.27
 failure_detector_heartbeat_interval_stdev{client_host_id="docker-desktop",client_pid="1",...} 47.6614037435513
-```
-
-## Running on DO
-
-```bash
-cd ./demo/infra && terraform apply -var digitalocean_token=$DIGITALOCEAN_TOKEN
 ```
