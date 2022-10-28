@@ -61,14 +61,7 @@ func (s Server) Heartbeat(ctx context.Context, hb *failproto.Beat) (*emptypb.Emp
 
 	// lookup a client process by UUID && check if exists/DNE
 	detector, ok := s.registeredProcs[hb.Uuid]
-	var labels = prometheus.Labels{
-		"client_host_id":      detector.Tags["client_host_id"],
-		"client_pid":          detector.Tags["client_pid"],
-		"client_region":       detector.Tags["client_region"],
-		"client_process_uuid": hb.Uuid,
-		"server_host_id":      s.hostID,
-	}
-
+	
 	// if client process DNE -> create a new entry in the registry of tracked clients
 	if !ok {
 		s.logger.WithFields(log.Fields{
@@ -90,6 +83,14 @@ func (s Server) Heartbeat(ctx context.Context, hb *failproto.Beat) (*emptypb.Emp
 			"server_host_id":      s.hostID,
 		}).Inc()
 		return &emptypb.Empty{}, nil
+	}
+
+	var labels = prometheus.Labels{
+		"client_host_id":      detector.Tags["client_host_id"],
+		"client_pid":          detector.Tags["client_pid"],
+		"client_region":       detector.Tags["client_region"],
+		"client_process_uuid": hb.Uuid,
+		"server_host_id":      s.hostID,
 	}
 
 	// Update suspicions on event
