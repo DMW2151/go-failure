@@ -13,7 +13,7 @@ type IntervalStatistics struct {
 	windowSize    int
 }
 
-// Phi - calculate phi (suspicion level ) from IntervalStatistics
+// Phi - calculate phi (suspicion level) from IntervalStatistics
 func (s *IntervalStatistics) Phi(lastT time.Time, currentT time.Time) float64 {
 
 	var (
