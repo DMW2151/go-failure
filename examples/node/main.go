@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"time"
 
@@ -31,13 +30,9 @@ func main() {
 	)
 
 	// define message to send as heartbeat
-	// todo: `StartPhiAccClient` could send full message once & (only) ID on subsequent beats
-	host, _ := os.Hostname()
 	msg := failproto.Beat{
 		Uuid: uuid.New().String(),
 		Tags: map[string]string{
-			"client_pid":     fmt.Sprintf("%d", os.Getpid()),
-			"client_host_id": host,
 			"client_region":  os.Getenv("DIGITALOCEAN_REGION"),
 		},
 	}
