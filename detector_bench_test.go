@@ -1,4 +1,4 @@
-package phiacc
+package failure
 
 import (
 	"math/rand"

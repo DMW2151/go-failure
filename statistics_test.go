@@ -1,7 +1,6 @@
-package phiacc
+package failure
 
 import (
-	"log"
 	"math"
 	"testing"
 	"time"
@@ -32,8 +31,7 @@ func Test_IntervalStatistics_Phi(t *testing.T) {
 				windowSize:    1_000,
 			}
 
-			phi := s.Phi(lastArrivalTime, sc.currentTime)
-			log.Println(phi)
+			_ = s.Phi(lastArrivalTime, sc.currentTime)
 		})
 	}
 }

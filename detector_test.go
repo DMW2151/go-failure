@@ -1,10 +1,8 @@
-package phiacc
+package failure
 
 import (
-	"fmt"
 	"math"
 	"math/rand"
-	"reflect"
 	"testing"
 	"time"
 
@@ -29,109 +27,77 @@ func setupPhiAccDetector(mean, stdev float64, windowSize int, seed int64) *PhiAc
 	return phiD
 }
 
-// Test_WindowCollector_PhiCalculation
-func Test_WindowCollector_PhiCalculation(t *testing.T) {
+// Test_Detector_PhiCalculation
+func Test_Detector_PhiCalculation(t *testing.T) {
 
 	var (
-		lastArrivalTime   time.Time           = time.Now()
-		hbmean            float64             = testHeartbeatArrivalMean
-		hbstdv            float64             = testHeartbeatArrivalStdev
-		standardCollector *PhiAccrualDetector = setupPhiAccDetector(
-			hbmean, hbstdv, testWindowSize, testRandSeed,
-		)
-		noVarianceCollector *PhiAccrualDetector = setupPhiAccDetector(
-			hbmean, hbstdv*0, testWindowSize, testRandSeed,
-		)
-		unstableNetworkCollector *PhiAccrualDetector = setupPhiAccDetector(
-			hbmean, hbstdv*2, testWindowSize, testRandSeed,
-		)
-		emptyCollector *PhiAccrualDetector = NewPhiAccrualDetector(testWindowSize)
+		lastArrivalTime         = time.Now()
+		standardPhiDetector     = setupPhiAccDetector(testHeartbeatArrivalMean, testHeartbeatArrivalStdev, testWindowSize, testRandSeed)
+		noisyNetworkPhiDetector = setupPhiAccDetector(testHeartbeatArrivalMean, testHeartbeatArrivalStdev*2, testWindowSize, testRandSeed)
 	)
 
 	var phiCalcTestScenarios = []struct {
 		name      string
 		detectors []Detector
 		offset    int
-		suspicion float64
+		expected  float64
 	}{
 		{
 			name:      "a-little-early",
-			detectors: []Detector{standardCollector},
-			offset:    int(hbmean - 1*hbstdv),
-			suspicion: 0.0783268,
+			detectors: []Detector{standardPhiDetector},
+			offset:    int(testHeartbeatArrivalMean - 1*testHeartbeatArrivalStdev),
+			expected:  0.0783268,
 		},
 		{
 			name:      "about-expected-arrival",
-			detectors: []Detector{standardCollector},
-			offset:    int(hbmean + 0*hbstdv),
-			suspicion: 0.3017074,
+			detectors: []Detector{standardPhiDetector},
+			offset:    int(testHeartbeatArrivalMean + 0*testHeartbeatArrivalStdev),
+			expected:  0.3017074,
 		},
 		{
 			name:      "a-little-late",
-			detectors: []Detector{standardCollector},
-			offset:    int(hbmean + 1*hbstdv),
-			suspicion: 0.7850040,
+			detectors: []Detector{standardPhiDetector},
+			offset:    int(testHeartbeatArrivalMean + 1*testHeartbeatArrivalStdev),
+			expected:  0.7850040,
 		},
 		{
-			// note :: on `unstableNetworkCollector` -> cannot have stdev too high or else suspicion is never 0
 			name:      "right-after-last-heartbeat",
-			detectors: []Detector{standardCollector, unstableNetworkCollector},
+			detectors: []Detector{standardPhiDetector, noisyNetworkPhiDetector},
 			offset:    0,
-			suspicion: math.Pow(0.01, 2),
+			expected:  math.Pow(0.01, 2), // expect this to be very near 0.0
 		},
 		{
 			name:      "negative-sign-on-duration",
-			detectors: []Detector{standardCollector, unstableNetworkCollector},
-			offset:    -int(hbmean),
-			suspicion: math.Pow(0.01, 2),
+			detectors: []Detector{standardPhiDetector, noisyNetworkPhiDetector},
+			offset:    -int(testHeartbeatArrivalMean),
+			expected:  math.Pow(0.01, 2), // expect this to be very near 0.0
 		},
 		{
-			// note :: can get about +/- 8 STDEV before get unstable results and cave to 8
+			// note :: can get about +/- 8 STDEV before get unstable results and cave to +INF
 			name:      "very-high-no-inf",
-			detectors: []Detector{standardCollector},
-			offset:    int(hbmean + 6*hbstdv),
-			suspicion: 8.62966,
+			detectors: []Detector{standardPhiDetector},
+			offset:    int(testHeartbeatArrivalMean + 6*testHeartbeatArrivalStdev),
+			expected:  8.62966,
 		},
 		{
+			// note: here is where we want to see the collapse, see: `very-high-no-inf`
 			name:      "very-high-expect-inf",
-			detectors: []Detector{standardCollector, unstableNetworkCollector},
-			offset:    int(hbmean + 255*hbstdv),
-			suspicion: math.Inf(1),
-		},
-		{
-			name:      "no-variance-collector",
-			detectors: []Detector{noVarianceCollector},
-			offset:    int(hbmean),
-			suspicion: math.NaN(),
-		},
-		{
-			name:      "empty-collector",
-			detectors: []Detector{emptyCollector},
-			offset:    int(hbmean),
-			suspicion: math.NaN(),
+			detectors: []Detector{standardPhiDetector, noisyNetworkPhiDetector},
+			offset:    int(testHeartbeatArrivalMean + 255*testHeartbeatArrivalStdev),
+			expected:  math.Inf(1),
 		},
 	}
 
 	for _, sc := range phiCalcTestScenarios {
 		t.Run(sc.name, func(t *testing.T) {
 
-			// load seed data ...
 			assert := assert.New(t)
-			var currentTime time.Time = lastArrivalTime.Add(time.Millisecond * time.Duration(sc.offset))
+			var currentTime time.Time = lastArrivalTime.Add(time.Microsecond * time.Duration(sc.offset))
 
 			// calculate phi ...
 			for _, detector := range sc.detectors {
 				phi := detector.Suspicion(lastArrivalTime, currentTime)
-				assert.InDelta(
-					sc.suspicion, phi, testDeltaTolerance,
-					fmt.Sprintf(
-						"detector (%s); got phi (%f) outside of expected range (%f, %f)",
-						reflect.TypeOf(detector),
-						phi,
-						sc.suspicion-testDeltaTolerance,
-						sc.suspicion+testDeltaTolerance,
-					),
-				)
+				assert.InDelta(sc.expected, phi, testDeltaTolerance)
 			}
 
 		})
