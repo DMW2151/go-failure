@@ -19,86 +19,86 @@ import (
 // Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
-// PhiAccrualClient is the client API for PhiAccrual service.
+// HealthClient is the client API for Health service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type PhiAccrualClient interface {
+type HealthClient interface {
 	Heartbeat(ctx context.Context, in *Beat, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
-type phiAccrualClient struct {
+type healthClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewPhiAccrualClient(cc grpc.ClientConnInterface) PhiAccrualClient {
-	return &phiAccrualClient{cc}
+func NewHealthClient(cc grpc.ClientConnInterface) HealthClient {
+	return &healthClient{cc}
 }
 
-func (c *phiAccrualClient) Heartbeat(ctx context.Context, in *Beat, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *healthClient) Heartbeat(ctx context.Context, in *Beat, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/failure.PhiAccrual/Heartbeat", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/failure.Health/Heartbeat", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// PhiAccrualServer is the server API for PhiAccrual service.
-// All implementations must embed UnimplementedPhiAccrualServer
+// HealthServer is the server API for Health service.
+// All implementations must embed UnimplementedHealthServer
 // for forward compatibility
-type PhiAccrualServer interface {
+type HealthServer interface {
 	Heartbeat(context.Context, *Beat) (*emptypb.Empty, error)
-	mustEmbedUnimplementedPhiAccrualServer()
+	mustEmbedUnimplementedHealthServer()
 }
 
-// UnimplementedPhiAccrualServer must be embedded to have forward compatible implementations.
-type UnimplementedPhiAccrualServer struct {
+// UnimplementedHealthServer must be embedded to have forward compatible implementations.
+type UnimplementedHealthServer struct {
 }
 
-func (UnimplementedPhiAccrualServer) Heartbeat(context.Context, *Beat) (*emptypb.Empty, error) {
+func (UnimplementedHealthServer) Heartbeat(context.Context, *Beat) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Heartbeat not implemented")
 }
-func (UnimplementedPhiAccrualServer) mustEmbedUnimplementedPhiAccrualServer() {}
+func (UnimplementedHealthServer) mustEmbedUnimplementedHealthServer() {}
 
-// UnsafePhiAccrualServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to PhiAccrualServer will
+// UnsafeHealthServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to HealthServer will
 // result in compilation errors.
-type UnsafePhiAccrualServer interface {
-	mustEmbedUnimplementedPhiAccrualServer()
+type UnsafeHealthServer interface {
+	mustEmbedUnimplementedHealthServer()
 }
 
-func RegisterPhiAccrualServer(s grpc.ServiceRegistrar, srv PhiAccrualServer) {
-	s.RegisterService(&PhiAccrual_ServiceDesc, srv)
+func RegisterHealthServer(s grpc.ServiceRegistrar, srv HealthServer) {
+	s.RegisterService(&Health_ServiceDesc, srv)
 }
 
-func _PhiAccrual_Heartbeat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Health_Heartbeat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Beat)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(PhiAccrualServer).Heartbeat(ctx, in)
+		return srv.(HealthServer).Heartbeat(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/failure.PhiAccrual/Heartbeat",
+		FullMethod: "/failure.Health/Heartbeat",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PhiAccrualServer).Heartbeat(ctx, req.(*Beat))
+		return srv.(HealthServer).Heartbeat(ctx, req.(*Beat))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// PhiAccrual_ServiceDesc is the grpc.ServiceDesc for PhiAccrual service.
+// Health_ServiceDesc is the grpc.ServiceDesc for Health service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var PhiAccrual_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "failure.PhiAccrual",
-	HandlerType: (*PhiAccrualServer)(nil),
+var Health_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "failure.Health",
+	HandlerType: (*HealthServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "Heartbeat",
-			Handler:    _PhiAccrual_Heartbeat_Handler,
+			Handler:    _Health_Heartbeat_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -12,6 +12,7 @@ import (
 // easily add in binaryFailureDetector, chenFailureDetector, or bertierFailureDetector
 type Detector interface {
 	Suspicion(time.Time, time.Time) float64
+	CurrentSuspicion() float64
 }
 
 // PhiAccrualDetector - detector for each process tracked by the server
@@ -86,4 +87,9 @@ func (phiD *PhiAccrualDetector) Parameters() (float64, float64) {
 // Suspicion
 func (phiD PhiAccrualDetector) Suspicion(mtime time.Time, ctime time.Time) float64 {
 	return phiD.stats.Phi(mtime, ctime)
+}
+
+// CurrentSuspicion
+func (phiD PhiAccrualDetector) CurrentSuspicion() float64 {
+	return phiD.stats.Phi(phiD.lastHeartbeat, time.Now())
 }
