@@ -19,10 +19,11 @@ const testListenAddresss string = "localhost:12151"
 type echoServer struct {
 	exproto.UnimplementedEchoServer
 	failproto.UnimplementedHealthServer
+	failureDetector *fail.Node
 }
 
 func (e echoServer) Echo(ctx context.Context, req *exproto.EchoRequest) (*exproto.EchoResponse, error) {
-	log.Infof("got a message: %s", req.Body)
+	log.Infof("got a message: - sending node has mean heartbeat inerval of %f microseconds", 1.0)
 	return &exproto.EchoResponse{
 		Body: req.Body,
 	}, nil
@@ -38,7 +39,9 @@ func main() {
 
 	// start new echo server
 	log.Info("starting echo server...")
-	exampleEchoServer := echoServer{}
+	exampleEchoServer := echoServer{
+		failureDetector: failureDetector,
+	}
 
 	// init grpc server && listen + serve
 	lis, err := net.Listen("tcp", testListenAddresss)

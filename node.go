@@ -5,16 +5,16 @@ import (
 	"math"
 	"time"
 
+	failproto "github.com/dmw2151/go-failure/proto"
 	log "github.com/sirupsen/logrus"
 	grpc "google.golang.org/grpc"
-
-	failproto "github.com/dmw2151/go-failure/proto"
+	peer "google.golang.org/grpc/peer"
 )
 
 // Node - maintains collection of health-detectors + metadata for each neighbor of this node
 type Node struct {
-	connectedNodes map[string]*PhiAccrualDetector
-	Opts           *NodeOptions
+	recentNodes map[string]*PhiAccrualDetector
+	opts        *NodeOptions
 }
 
 // NodeOptions - config options to control failure detection estimation window, etc...
@@ -23,29 +23,26 @@ type NodeOptions struct {
 	ReapInterval         time.Duration
 }
 
-// NewFailureDetectorNode - creates new Node
+// NewFailureDetectorNode - creates new Failure Detecting Node
 func NewFailureDetectorNode(nOpts *NodeOptions) (*Node, error) {
 	return &Node{
-		connectedNodes: make(map[string]*PhiAccrualDetector),
-		Opts:           nOpts,
+		recentNodes: make(map[string]*PhiAccrualDetector),
+		opts:        nOpts,
 	}, nil
 }
 
 // Heartbeat - required to implement `failproto.PhiAccrualServer`, handler for recv'ing a heartbeat. On recv.,
 // either create a new detector, or update an existing
-func (n *Node) ReceiveHeartbeat(ctx context.Context, arrivalTime time.Time, hb *failproto.Beat) (error) {
+func (n *Node) ReceiveHeartbeat(ctx context.Context, arrivalTime time.Time, senderAddr string, hb *failproto.Beat) error {
 
 	var detector *PhiAccrualDetector
 
 	// lookup a client process by UUID && check if exists/DNE
-	detector, ok := n.connectedNodes[hb.Uuid]
+	detector, ok := n.recentNodes[senderAddr]
 
 	// if client process DNE -> create a new entry in the registry of tracked clients
 	if !ok {
-		detector = NewPhiAccrualDetector(n.Opts.EstimationWindowSize)
-		detector.lastHeartbeat = arrivalTime
-		detector.Tags = hb.Tags
-		n.connectedNodes[hb.Uuid] = detector
+		n.recentNodes[senderAddr] = NewPhiAccrualDetector(arrivalTime, n.opts.EstimationWindowSize, hb.Tags)
 		return nil
 	}
 
@@ -62,16 +59,18 @@ func (n *Node) ReceiveHeartbeat(ctx context.Context, arrivalTime time.Time, hb *
 func (n *Node) PhiAccrualInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 
-		// foo..
-		if beat, ok := req.(*failproto.Beat); ok {
-			if err := n.ReceiveHeartbeat(ctx, time.Now(), beat); err != nil {
-				log.WithFields(log.Fields{
-					"err": err,
-				}).Error("error adding...")
+		// use `p.Addr.String()` -> the address and port of the sender as a client key...
+		if msg, ok := req.(*failproto.Beat); ok {
+			if p, ok := peer.FromContext(ctx); ok {
+				err := n.ReceiveHeartbeat(ctx, time.Now(), p.Addr.String(), msg)
+				if err != nil {
+					log.WithFields(log.Fields{
+						"err": err,
+					}).Error("error adding...")
+				}
 			}
 		}
 
-		// main
 		h, err := handler(ctx, req)
 		return h, err
 	}
@@ -81,7 +80,7 @@ func (n *Node) PhiAccrualInterceptor() grpc.UnaryServerInterceptor {
 func (n *Node) WatchNodeStatus(ctx context.Context) {
 
 	// start ticker
-	logTicker := time.NewTicker(n.Opts.ReapInterval)
+	logTicker := time.NewTicker(n.opts.ReapInterval)
 	defer logTicker.Stop()
 
 	for {
@@ -108,7 +107,7 @@ func (n *Node) PurgeNeighbors(ctx context.Context, calcTimestamp time.Time) erro
 	//
 	// When suspicion is +Inf (distribution collapses to +Inf around mean + 12 stdev),
 	// then mark node failed and remove.
-	for pUuid, detector := range n.connectedNodes {
+	for pUuid, detector := range n.recentNodes {
 		if phi := detector.CurrentSuspicion(); phi == math.Inf(1) {
 			deadProcs = append(deadProcs, pUuid)
 		}
@@ -116,7 +115,7 @@ func (n *Node) PurgeNeighbors(ctx context.Context, calcTimestamp time.Time) erro
 
 	// remove nodes marked for deletion in prev. step
 	for _, pUuid := range deadProcs {
-		delete(n.connectedNodes, pUuid)
+		delete(n.recentNodes, pUuid)
 		log.WithFields(log.Fields{
 			"client_process_uuid": pUuid,
 		}).Info("removed client process, suspected crash")

@@ -32,7 +32,7 @@ type windowElement struct {
 }
 
 // NewPhiAccrualDetector -
-func NewPhiAccrualDetector(windowSize int) *PhiAccrualDetector {
+func NewPhiAccrualDetector(hbTime time.Time, windowSize int, tags map[string]string) *PhiAccrualDetector {
 
 	// init phi-acc detector - create a very simple ring to iterate through
 	window := make([]windowElement, windowSize)
@@ -42,6 +42,7 @@ func NewPhiAccrualDetector(windowSize int) *PhiAccrualDetector {
 	window[windowSize-1].next = &window[0]
 
 	return &PhiAccrualDetector{
+		lastHeartbeat: hbTime,
 		stats: &IntervalStatistics{
 			rSum:          0.0,
 			rSumSquares:   0.0,
@@ -50,6 +51,7 @@ func NewPhiAccrualDetector(windowSize int) *PhiAccrualDetector {
 		},
 		window:         window,
 		expiringSample: &window[0],
+		Tags:           tags,
 	}
 }
 
