@@ -2,82 +2,134 @@ package failure
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"time"
 
 	failproto "github.com/dmw2151/go-failure/proto"
+
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
-	grpc "google.golang.org/grpc"
-	peer "google.golang.org/grpc/peer"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/peer"
 )
 
-// Node - maintains collection of health-detectors + metadata for each neighbor of this node
+// Node - collection of health detectors for each client sending through the interceptor
 type Node struct {
-	recentNodes map[string]*PhiAccrualDetector
-	opts        *NodeOptions
+	recentClients map[string]*PhiAccrualDetector // maps senderAddress -> detector
+	opts          *NodeOptions
+	metadata      *NodeMetadata
 }
 
-// NodeOptions - config options to control failure detection estimation window, etc...
+// NodeMetadata - metadata abt. the running grpc application for labeling published metrics
+type NodeMetadata struct {
+	HostAddress string
+	AppID       string
+}
+
+// NodeOptions - options for distribution estimation window, purging interval, etc.
 type NodeOptions struct {
 	EstimationWindowSize int
 	ReapInterval         time.Duration
+	PurgeGracePeriod     time.Duration
 }
 
-// NewFailureDetectorNode - creates new Failure Detecting Node
-func NewFailureDetectorNode(nOpts *NodeOptions) (*Node, error) {
+// NewFailureDetectorNode - new failure-detecting node
+func NewFailureDetectorNode(nOpts *NodeOptions, nMetadata *NodeMetadata) *Node {
 	return &Node{
-		recentNodes: make(map[string]*PhiAccrualDetector),
-		opts:        nOpts,
-	}, nil
+		recentClients: make(map[string]*PhiAccrualDetector),
+		opts:          nOpts,
+		metadata:      nMetadata,
+	}
 }
 
-// Heartbeat - required to implement `failproto.PhiAccrualServer`, handler for recv'ing a heartbeat. On recv.,
-// either create a new detector, or update an existing
-func (n *Node) ReceiveHeartbeat(ctx context.Context, arrivalTime time.Time, senderAddr string, hb *failproto.Beat) error {
+// ReceiveHeartbeat - create or update a record in the node's recentClients
+func (n *Node) ReceiveHeartbeat(ctx context.Context, clientID string, beatmsg *failproto.Beat) error {
 
-	var detector *PhiAccrualDetector
+	var (
+		arrivalTime time.Time = time.Now()
+		delta float64
+	)
 
-	// lookup a client process by UUID && check if exists/DNE
-	detector, ok := n.recentNodes[senderAddr]
+	// if client process already exists -> update entry in recentClients w. delta since last event
+	if detector, ok := n.recentClients[clientID]; ok {
 
-	// if client process DNE -> create a new entry in the registry of tracked clients
-	if !ok {
-		n.recentNodes[senderAddr] = NewPhiAccrualDetector(arrivalTime, n.opts.EstimationWindowSize, hb.Tags)
+		delta = float64(arrivalTime.Sub(detector.lastHeartbeat) / time.Millisecond)
+		detector.AddValue(ctx, arrivalTime)
+
+		log.WithFields(log.Fields{
+			"client_app_id": beatmsg.AppID,
+			"server_app_id": n.metadata.AppID,
+			"client_addr":   clientID,
+			"server_addr":   n.metadata.HostAddress,
+		}).Debug("heartbeat from client")
+
+		// update histogram metrics
+		heartbeatIntervalHist.With(prometheus.Labels{
+			"client_app_id": beatmsg.AppID,
+			"server_app_id": n.metadata.AppID,
+			"client_addr":   clientID,
+			"server_addr":   n.metadata.HostAddress,
+		}).Observe(delta)
+
 		return nil
 	}
 
-	// if client process (by UUID) already exists -> calculate dela since last event
-	// add to interval, update stats, update last arrival time, etc.
-	hbDelta := float64(arrivalTime.Sub(detector.lastHeartbeat) / time.Microsecond)
-	detector.AddValue(hbDelta)
-	detector.lastHeartbeat = arrivalTime
+	// if client process DNE -> create an entry in recentClients and increment the guage for
+	// activeClients
+	n.recentClients[clientID] = NewPhiAccrualDetector(arrivalTime, n.opts, &NodeMetadata{
+		HostAddress: clientID,
+		AppID:       beatmsg.AppID,
+	})
 
+	log.WithFields(log.Fields{
+		"client_app_id":   beatmsg.AppID,
+		"server_app_id":   n.metadata.AppID,
+		"client_addr":     clientID,
+		"server_addr":     n.metadata.HostAddress,
+		"current_clients": len(n.recentClients),
+	}).Info("received heartbeat from new client")
+
+	activeClientsGauge.With(prometheus.Labels{
+		"client_app_id": beatmsg.AppID,
+		"server_app_id": n.metadata.AppID,
+		"client_addr":   clientID,
+		"server_addr":   n.metadata.HostAddress,
+	}).Inc()
 	return nil
 }
 
-// PhiAccrualInterceptor
-func (n *Node) PhiAccrualInterceptor() grpc.UnaryServerInterceptor {
+// FailureDetectorInterceptor - Acts as a UnaryServerInterceptor, updates detector node's heartbeat statistics when sees
+// an incoming failproto.Beat message
+func (n *Node) FailureDetectorInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 
-		// use `p.Addr.String()` -> the address and port of the sender as a client key...
+		// if incoming messasge is `*failproto.Beat`; update node's heartbeat statistics
 		if msg, ok := req.(*failproto.Beat); ok {
 			if p, ok := peer.FromContext(ctx); ok {
-				err := n.ReceiveHeartbeat(ctx, time.Now(), p.Addr.String(), msg)
+				err := n.ReceiveHeartbeat(ctx, p.Addr.String(), msg)
 				if err != nil {
 					log.WithFields(log.Fields{
-						"err": err,
-					}).Error("error adding...")
+						"err":  err,
+						"beat": fmt.Sprintf("%+v", msg),
+					}).Error("failed to update heartbeat statistics")
 				}
+			} else {
+				// failed to extract peer from context - can't get client info ->> do not add to recentClients
+				log.WithFields(log.Fields{
+					"beat": fmt.Sprintf("%+v", msg),
+				}).Error("failed to extract peer from context")
 			}
 		}
 
+		// call next interceptor/handler in call chain
 		h, err := handler(ctx, req)
 		return h, err
 	}
 }
 
-// WatchNeighborNodes - calc phi && de-registers expired procs on set interval + publishes
-func (n *Node) WatchNodeStatus(ctx context.Context) {
+// WatchConnectedClients - watches all connected clients, if the reap interval
+func (n *Node) WatchConnectedClients(ctx context.Context) {
 
 	// start ticker
 	logTicker := time.NewTicker(n.opts.ReapInterval)
@@ -85,40 +137,57 @@ func (n *Node) WatchNodeStatus(ctx context.Context) {
 
 	for {
 		select {
-		case <-logTicker.C:
-			err := n.PurgeNeighbors(ctx, time.Now())
-			if err != nil {
-				log.WithFields(log.Fields{
-					"err": err,
-				}).Error("error purging suspected procs")
-			}
+		case t := <-logTicker.C:
+			n.PurgeInactiveClients(ctx, t)
+		case <-ctx.Done():
+			// context cancelled
+			log.WithFields(log.Fields{
+				"err": ctx.Err(),
+			}).Error("conext error")
+			return
 		}
 	}
 }
 
-// PurgeNeighbors - Calculates phi and removes processes that have been marked suspicious (using
-// +inf as suspicion threshold)
-func (n *Node) PurgeNeighbors(ctx context.Context, calcTimestamp time.Time) error {
+// PurgeNeighbors - calculates phi and removes processes that have been marked suspicious (using
+// +inf as suspicion threshold) AND have not been seen within grace period.
+func (n *Node) PurgeInactiveClients(ctx context.Context, calcTimestamp time.Time) {
 
-	var deadProcs []string
+	var phi float64
 
-	// calulate phi from (last heartbeat, present), this can be called at any time, so 0.0 suspicion
-	// is a very common outcome when called at random (esp. if low variance on arrival times)
-	//
-	// When suspicion is +Inf (distribution collapses to +Inf around mean + 12 stdev),
-	// then mark node failed and remove.
-	for pUuid, detector := range n.recentNodes {
-		if phi := detector.CurrentSuspicion(); phi == math.Inf(1) {
-			deadProcs = append(deadProcs, pUuid)
+	// remove clients w. infinite suspicion
+	for addr, detector := range n.recentClients {
+		phi = detector.Suspicion(calcTimestamp)
+
+
+		// require the following two conditions
+		if (calcTimestamp.Sub(detector.lastHeartbeat) > n.opts.PurgeGracePeriod) && (phi == math.Inf(1)) {
+
+			var labels = prometheus.Labels{
+				"client_app_id": detector.metadata.AppID,
+				"server_app_id": n.metadata.AppID,
+				"client_addr":   addr,
+				"server_addr":   n.metadata.HostAddress,
+			}
+
+			// if client process suspicion == 1 & age -> decrement the guage for activeClients
+			activeClientsGauge.With(labels).Dec()
+
+			if n := heartbeatIntervalHist.DeletePartialMatch(labels); n == 0 {
+				log.WithFields(log.Fields{
+					"labels": labels,
+				}).Warn("failed to remove metrics of (suspected) crashed process")
+			}
+
+			log.WithFields(log.Fields{
+				"client_app_id": detector.metadata.AppID,
+				"server_app_id": n.metadata.AppID,
+				"client_addr":   addr,
+				"server_addr":   n.metadata.HostAddress,
+			}).Info("no heartbeat from client in max suspicion interval, removing")
+
+			// warn:
+			delete(n.recentClients, addr)
 		}
 	}
-
-	// remove nodes marked for deletion in prev. step
-	for _, pUuid := range deadProcs {
-		delete(n.recentNodes, pUuid)
-		log.WithFields(log.Fields{
-			"client_process_uuid": pUuid,
-		}).Info("removed client process, suspected crash")
-	}
-	return nil
 }

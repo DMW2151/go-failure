@@ -20,7 +20,7 @@ func (s *IntervalStatistics) Phi(lastT time.Time, currentT time.Time) float64 {
 		nSamp     float64 = math.Min(float64(s.windowSize), float64(s.nTotalSamples))
 		rAvg      float64 = (s.rSum / nSamp)
 		rVar      float64 = (s.rSumSquares / nSamp) - math.Pow(rAvg, 2)
-		timeDelta float64 = float64(currentT.Sub(lastT) / time.Microsecond)
+		timeDelta float64 = float64(currentT.Sub(lastT) / time.Millisecond)
 	)
 
 	// use the def'n straight from the book -> https://en.wikipedia.org/wiki/Normal_distribution
