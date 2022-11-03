@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"net"
 	"net/http"
 	"time"
@@ -22,7 +21,7 @@ const (
 	reapInterval                  time.Duration = time.Second * 10
 )
 
-// healthCheck -
+// lookasideLoadBalancer -
 type lookasideLoadBalancer struct {
 	lalbproto.UnimplementedLBServer
 	failureDetector *fail.Node
@@ -30,38 +29,33 @@ type lookasideLoadBalancer struct {
 
 func main() {
 
+	log.Info("starting look-aside-lb metrics server")
 	http.Handle("/metrics", promhttp.Handler())
 	go http.ListenAndServe(failureDetectorMetricsAddress, nil)
 
-	nodeOptions := fail.NodeOptions{
+	failureDetector := fail.NewFailureDetectorNode(&fail.NodeOptions{
 		EstimationWindowSize: estimationWindowSize,
 		ReapInterval:         reapInterval,
-	}
-
-	nodeMetadata := fail.NodeMetadata{
+	}, &fail.NodeMetadata{
 		HostAddress: balancerListenAddresss,
 		AppID:       nodeID,
-	}
-
-	failureDetector := fail.NewFailureDetectorNode(&nodeOptions, &nodeMetadata)
-	go failureDetector.WatchConnectedClients(context.Background())
-
-	// start new look-aside load balancer
-	log.Info("starting look-aside lb server")
-	lalbServer := lookasideLoadBalancer{
-		failureDetector: failureDetector,
-	}
+	})
 
 	// init grpc server && listen + serve
 	lis, err := net.Listen("tcp", balancerListenAddresss)
 	if err != nil {
-		log.Error(err)
+		log.WithFields(log.Fields{
+			"balancerListenAddresss": balancerListenAddresss, 
+			"err": err,
+		}).Error("failed to start look-aside-lb; failed to listen on address")
 	}
 
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(failureDetector.FailureDetectorInterceptor()),
 	)
 
-	lalbproto.RegisterLBServer(grpcServer, lalbServer)
+	lalbproto.RegisterLBServer(grpcServer, lookasideLoadBalancer{
+		failureDetector: failureDetector,
+	})
 	grpcServer.Serve(lis)
 }

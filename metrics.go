@@ -24,4 +24,11 @@ var (
 		Help:      "agg. heartbeat intervals from clients",
 		Buckets:   prometheus.ExponentialBucketsRange(32, 8192, 16),
 	}, failureDetectorLabels)
+
+	suspicionHist = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "failure_detector",
+		Name:      "suspicion",
+		Help:      "per-connection suspicion",
+		Buckets:   prometheus.ExponentialBucketsRange(0.001, 16, 16),
+	}, failureDetectorLabels)
 )

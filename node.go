@@ -3,7 +3,6 @@ package failure
 import (
 	"context"
 	"fmt"
-	"math"
 	"time"
 
 	failproto "github.com/dmw2151/go-failure/proto"
@@ -48,29 +47,27 @@ func (n *Node) ReceiveHeartbeat(ctx context.Context, clientID string, beatmsg *f
 
 	var (
 		arrivalTime time.Time = time.Now()
-		delta float64
+		phi, delta float64
 	)
 
 	// if client process already exists -> update entry in recentClients w. delta since last event
 	if detector, ok := n.recentClients[clientID]; ok {
+		go func(){
+			labels := prometheus.Labels{
+				"client_app_id": beatmsg.AppID,
+				"server_app_id": n.metadata.AppID,
+				"client_addr":   clientID,
+				"server_addr":   n.metadata.HostAddress,
+			}
 
-		delta = float64(arrivalTime.Sub(detector.lastHeartbeat) / time.Millisecond)
-		detector.AddValue(ctx, arrivalTime)
+			delta = float64(arrivalTime.Sub(detector.lastHeartbeat) / time.Millisecond)
 
-		log.WithFields(log.Fields{
-			"client_app_id": beatmsg.AppID,
-			"server_app_id": n.metadata.AppID,
-			"client_addr":   clientID,
-			"server_addr":   n.metadata.HostAddress,
-		}).Debug("heartbeat from client")
+			phi = detector.Suspicion(arrivalTime)
+			suspicionHist.With(labels).Observe(phi)
 
-		// update histogram metrics
-		heartbeatIntervalHist.With(prometheus.Labels{
-			"client_app_id": beatmsg.AppID,
-			"server_app_id": n.metadata.AppID,
-			"client_addr":   clientID,
-			"server_addr":   n.metadata.HostAddress,
-		}).Observe(delta)
+			detector.AddValue(ctx, arrivalTime)
+			heartbeatIntervalHist.With(labels).Observe(delta)
+		}()
 
 		return nil
 	}
@@ -128,66 +125,3 @@ func (n *Node) FailureDetectorInterceptor() grpc.UnaryServerInterceptor {
 	}
 }
 
-// WatchConnectedClients - watches all connected clients, if the reap interval
-func (n *Node) WatchConnectedClients(ctx context.Context) {
-
-	// start ticker
-	logTicker := time.NewTicker(n.opts.ReapInterval)
-	defer logTicker.Stop()
-
-	for {
-		select {
-		case t := <-logTicker.C:
-			n.PurgeInactiveClients(ctx, t)
-		case <-ctx.Done():
-			// context cancelled
-			log.WithFields(log.Fields{
-				"err": ctx.Err(),
-			}).Error("conext error")
-			return
-		}
-	}
-}
-
-// PurgeNeighbors - calculates phi and removes processes that have been marked suspicious (using
-// +inf as suspicion threshold) AND have not been seen within grace period.
-func (n *Node) PurgeInactiveClients(ctx context.Context, calcTimestamp time.Time) {
-
-	var phi float64
-
-	// remove clients w. infinite suspicion
-	for addr, detector := range n.recentClients {
-		phi = detector.Suspicion(calcTimestamp)
-
-
-		// require the following two conditions
-		if (calcTimestamp.Sub(detector.lastHeartbeat) > n.opts.PurgeGracePeriod) && (phi == math.Inf(1)) {
-
-			var labels = prometheus.Labels{
-				"client_app_id": detector.metadata.AppID,
-				"server_app_id": n.metadata.AppID,
-				"client_addr":   addr,
-				"server_addr":   n.metadata.HostAddress,
-			}
-
-			// if client process suspicion == 1 & age -> decrement the guage for activeClients
-			activeClientsGauge.With(labels).Dec()
-
-			if n := heartbeatIntervalHist.DeletePartialMatch(labels); n == 0 {
-				log.WithFields(log.Fields{
-					"labels": labels,
-				}).Warn("failed to remove metrics of (suspected) crashed process")
-			}
-
-			log.WithFields(log.Fields{
-				"client_app_id": detector.metadata.AppID,
-				"server_app_id": n.metadata.AppID,
-				"client_addr":   addr,
-				"server_addr":   n.metadata.HostAddress,
-			}).Info("no heartbeat from client in max suspicion interval, removing")
-
-			// warn:
-			delete(n.recentClients, addr)
-		}
-	}
-}
