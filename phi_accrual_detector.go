@@ -14,6 +14,7 @@ type PhiAccrualDetector struct {
 	window         []windowElement
 	expiringSample *windowElement
 	lastHeartbeat  time.Time
+	lastPhi        float64
 	mu             sync.Mutex
 }
 
@@ -73,7 +74,7 @@ func (phiD *PhiAccrualDetector) AddValue(ctx context.Context, arrivalTime time.T
 	return nil
 }
 
-// Suspicion - rm
+// Suspicion - calculates suspicion given the current detector state and a given time
 func (phiD *PhiAccrualDetector) Suspicion(ctime time.Time) float64 {
 	return phiD.stats.Phi(phiD.lastHeartbeat, ctime)
 }

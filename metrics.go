@@ -25,6 +25,7 @@ var (
 		Buckets:   prometheus.ExponentialBucketsRange(32, 8192, 16),
 	}, failureDetectorLabels)
 
+	// failure_detector_suspicion -> suspicion distribution for each client
 	suspicionHist = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "failure_detector",
 		Name:      "suspicion",

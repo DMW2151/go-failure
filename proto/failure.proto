@@ -1,6 +1,8 @@
 /*
-note: generated from ./src directory
-protoc --go_out=. ./proto/go-failure.proto --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative 
+protoc --go_out=. --go_opt=paths=source_relative \
+    --go-grpc_out=. \
+    --go-grpc_opt=paths=source_relative \
+    ./proto/failure.proto 
 */
 
 syntax = "proto3";
@@ -9,6 +11,19 @@ package failure;
 option go_package = "github.com/dmw2151/go-failure/proto";
 
 message Beat {
-  string uuid = 1;
-  string appID = 2;
+  string clientID = 1;
+}
+
+message NodeHealthStatus {
+  string addr = 1;
+  double  suspicion = 2;
+}
+
+message NodeHealthRequest {
+  int64 limit = 1;
+  double threshold = 2;
+}
+
+message NodeHealthResponse {
+  repeated NodeHealthStatus statuses = 1;
 }

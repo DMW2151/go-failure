@@ -1,9 +1,4 @@
-// echo.proto
-
-
 /*
-// update your include paths...
-
 protoc --go_out=. --go_opt=paths=source_relative \
     --proto_path="./.." \
     --proto_path="."  \
@@ -22,4 +17,5 @@ option go_package = "server/proto";
 
 service LB {
     rpc Beat (failure.Beat) returns (google.protobuf.Empty);
+    rpc HealthyNodes(failure.NodeHealthRequest) returns (failure.NodeHealthResponse);
 }

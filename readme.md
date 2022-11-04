@@ -1,6 +1,6 @@
 # Phi-Accrual Failure Detection
 
-Implementation of a phi-accrual failure detector from `Hayashibara et al.` as a GRPC interceptor.
+Implementation of a phi-accrual failure detector from `Hayashibara et al.`.
 
 ## Paper
 

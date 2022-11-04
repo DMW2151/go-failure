@@ -25,6 +25,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type LBClient interface {
 	Beat(ctx context.Context, in *proto.Beat, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	HealthyNodes(ctx context.Context, in *proto.NodeHealthRequest, opts ...grpc.CallOption) (*proto.NodeHealthResponse, error)
 }
 
 type lBClient struct {
@@ -44,11 +45,21 @@ func (c *lBClient) Beat(ctx context.Context, in *proto.Beat, opts ...grpc.CallOp
 	return out, nil
 }
 
+func (c *lBClient) HealthyNodes(ctx context.Context, in *proto.NodeHealthRequest, opts ...grpc.CallOption) (*proto.NodeHealthResponse, error) {
+	out := new(proto.NodeHealthResponse)
+	err := c.cc.Invoke(ctx, "/echo.LB/HealthyNodes", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // LBServer is the server API for LB service.
 // All implementations must embed UnimplementedLBServer
 // for forward compatibility
 type LBServer interface {
 	Beat(context.Context, *proto.Beat) (*emptypb.Empty, error)
+	HealthyNodes(context.Context, *proto.NodeHealthRequest) (*proto.NodeHealthResponse, error)
 	mustEmbedUnimplementedLBServer()
 }
 
@@ -58,6 +69,9 @@ type UnimplementedLBServer struct {
 
 func (UnimplementedLBServer) Beat(context.Context, *proto.Beat) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Beat not implemented")
+}
+func (UnimplementedLBServer) HealthyNodes(context.Context, *proto.NodeHealthRequest) (*proto.NodeHealthResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method HealthyNodes not implemented")
 }
 func (UnimplementedLBServer) mustEmbedUnimplementedLBServer() {}
 
@@ -90,6 +104,24 @@ func _LB_Beat_Handler(srv interface{}, ctx context.Context, dec func(interface{}
 	return interceptor(ctx, in, info, handler)
 }
 
+func _LB_HealthyNodes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(proto.NodeHealthRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LBServer).HealthyNodes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/echo.LB/HealthyNodes",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LBServer).HealthyNodes(ctx, req.(*proto.NodeHealthRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // LB_ServiceDesc is the grpc.ServiceDesc for LB service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -100,6 +132,10 @@ var LB_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Beat",
 			Handler:    _LB_Beat_Handler,
+		},
+		{
+			MethodName: "HealthyNodes",
+			Handler:    _LB_HealthyNodes_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
