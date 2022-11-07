@@ -67,6 +67,9 @@ func (phiD *PhiAccrualDetector) AddValue(ctx context.Context, arrivalTime time.T
 	phiD.expiringSample.value = timeDelta
 	phiD.expiringSample = phiD.expiringSample.next
 
+	// note: there is an argument here about if this is numerically stable (i.e. we don't want to subtract two large 
+	// nums to get a small number...)
+	//
 	// upate the nTotalSamples, rSum, and rSumSquares for current collection
 	phiD.stats.rSum += (timeDelta - expTimeDelta)
 	phiD.stats.rSumSquares += (math.Pow(timeDelta, 2) - math.Pow(expTimeDelta, 2))

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	fail "github.com/dmw2151/go-failure"
-	lalbproto "github.com/dmw2151/go-failure/example/proto"
+	lalbproto "github.com/dmw2151/go-failure/example/proto/lalb"
 	failproto "github.com/dmw2151/go-failure/proto"
 
 	promhttp "github.com/prometheus/client_golang/prometheus/promhttp"
@@ -33,42 +33,43 @@ var (
 
 // lookasideLoadBalancer -
 type lookasideLoadBalancer struct {
-	lalbproto.UnimplementedLBServer
+	lalbproto.UnimplementedHeartBeatServer
 	failureDetector *fail.Node
 }
 
+// Beat -
 func (lb lookasideLoadBalancer) Beat(ctx context.Context, in *failproto.Beat) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, nil
 }
 
-func (lb lookasideLoadBalancer) HealthyNodes(ctx context.Context, in *failproto.NodeHealthRequest) (*failproto.NodeHealthResponse, error) {
+// HealthyNodes -
+func (lb lookasideLoadBalancer) HealthyNodes(ctx context.Context, in *lalbproto.NodeHealthRequest) (*lalbproto.NodeHealthResponse, error) {
 
 	var (
-		hNodes                = []*failproto.NodeHealthStatus{}
+		hNodes                = []*lalbproto.NodeHealthStatus{}
 		ctr         int64     = 0
 		arrivalTime time.Time = time.Now()
-		phi         float64
 	)
 
+	// todo: run these on own go-routines to save a few ms (prob. only worth when large #
+	// of connected clients)
 	for addr, detector := range lb.failureDetector.RecentClients {
-		phi = detector.Suspicion(arrivalTime)
-		if detector.Suspicion(arrivalTime) < in.Threshold {
-			hNodes = append(hNodes, &failproto.NodeHealthStatus{
+		if phi := detector.Suspicion(arrivalTime); phi < in.Threshold {
+			hNodes = append(hNodes, &lalbproto.NodeHealthStatus{
 				Addr:      addr,
 				Suspicion: phi,
 			})
 			ctr++
 		}
-
 		if ctr >= in.Limit {
 			break
 		}
 	}
 
-	resp := failproto.NodeHealthResponse{
+	// return all healthy nodes...
+	return &lalbproto.NodeHealthResponse{
 		Statuses: hNodes,
-	}
-	return &resp, nil
+	}, nil
 }
 
 // startPromMetricsEndPoint -
@@ -101,7 +102,7 @@ func main() {
 		grpc.UnaryInterceptor(failureDetector.FailureDetectorInterceptor()),
 	)
 
-	lalbproto.RegisterLBServer(grpcServer, lookasideLoadBalancer{
+	lalbproto.RegisterHeartBeatServer(grpcServer, lookasideLoadBalancer{
 		failureDetector: failureDetector,
 	})
 

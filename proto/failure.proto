@@ -13,17 +13,3 @@ option go_package = "github.com/dmw2151/go-failure/proto";
 message Beat {
   string clientID = 1;
 }
-
-message NodeHealthStatus {
-  string addr = 1;
-  double  suspicion = 2;
-}
-
-message NodeHealthRequest {
-  int64 limit = 1;
-  double threshold = 2;
-}
-
-message NodeHealthResponse {
-  repeated NodeHealthStatus statuses = 1;
-}

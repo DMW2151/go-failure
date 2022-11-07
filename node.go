@@ -7,8 +7,8 @@ import (
 
 	failproto "github.com/dmw2151/go-failure/proto"
 
-	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
 )
@@ -50,7 +50,7 @@ func (n *Node) ReceiveHeartbeat(ctx context.Context, clientID string, beatmsg *f
 		phi, delta  float64
 	)
 
-	// if client process already exists -> update entry in RecentClients w. delta since last event
+	// client process already exists -> update entry in RecentClients w. delta since last event
 	if detector, ok := n.RecentClients[clientID]; ok {
 		labels := prometheus.Labels{
 			"client_app_id": beatmsg.ClientID,
@@ -61,12 +61,16 @@ func (n *Node) ReceiveHeartbeat(ctx context.Context, clientID string, beatmsg *f
 
 		delta = float64(arrivalTime.Sub(detector.lastHeartbeat) / time.Millisecond)
 
+		// note: do not update histogram w. the most recent phi if NaN or Inf, these vals
+		// ruin the distribution of the histogram!
 		phi = detector.Suspicion(arrivalTime)
 		if !(math.IsNaN(phi) || math.IsInf(phi, 1) || math.IsInf(phi, -1)) {
 			detector.lastPhi = phi
 			suspicionHist.With(labels).Observe(phi)
 		}
 
+		// update timedelta, always safe to update w. delta, massive times just fall into +Inf 
+		// histogram bucket
 		detector.AddValue(ctx, arrivalTime)
 		heartbeatIntervalHist.With(labels).Observe(delta)
 		return nil

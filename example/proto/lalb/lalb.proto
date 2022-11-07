@@ -1,0 +1,41 @@
+/*
+protoc --go_out=. --go_opt=paths=source_relative \
+    --proto_path="./.." \
+    --proto_path="."  \
+    --go-grpc_out=. \
+    --go-grpc_opt=paths=source_relative \
+    ./proto/lalb/lalb.proto 
+*/
+
+syntax = "proto3";
+
+package lalb;
+option go_package = "server/proto";
+
+import "google/protobuf/empty.proto";
+import "proto/failure.proto";
+
+// LB - 
+service HeartBeat {
+    rpc Beat (failure.Beat) returns (google.protobuf.Empty);
+    rpc HealthyNodes(NodeHealthRequest) returns (NodeHealthResponse);
+}
+
+// NodeHealthRequest
+message NodeHealthRequest {
+  int64 limit = 1;
+  double threshold = 2;
+  string serviceLabel = 3;
+}
+
+// NodeHealthStatus
+message NodeHealthStatus {
+  string addr = 1;
+  double  suspicion = 2;
+}
+
+// NodeHealthResponse
+message NodeHealthResponse {
+  repeated NodeHealthStatus statuses = 1;
+}
+
