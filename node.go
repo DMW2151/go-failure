@@ -168,6 +168,7 @@ func (n *Node) PurgeInactiveClients(ctx context.Context, calcTimestamp time.Time
 // an incoming failproto.Beat message
 func (n *Node) FailureDetectorInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		// todo: add a check for `service-name` here + add a check for incoming *listen* address, not incoming client address!!
 		if msg, ok := req.(*failproto.Beat); ok {
 			if p, ok := peer.FromContext(ctx); ok {
 				go n.ReceiveHeartbeat(ctx, p.Addr.String(), msg)
